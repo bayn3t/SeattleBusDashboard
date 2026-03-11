@@ -23,13 +23,6 @@
     <!-- Map container -->
     <div id="map"></div>
     
-    <!-- Header -->
-    <div class="header">
-        <h1>🚌 Metro Stops</h1>
-        <p>Browse all active Seattle & King County bus stops with route information and transit details.</p>
-        <div class="stop-count">6,422 Active Stops</div>
-    </div>
-    
     <!-- Search Box -->
     <div class="search-box">
         <div class="search-controls">
@@ -49,18 +42,27 @@
     
     <!-- Legend -->
     <div class="legend">
-        <h3>Stop Types</h3>
-        <div class="legend-item">
-            <div class="legend-circle small"></div>
-            <span>1-2 Routes</span>
+        <h3>Map Legend</h3>
+        <div style="margin-bottom: 12px;">
+            <p style="font-weight: bold; margin: 8px 0 6px 0; font-size: 12px;">Marker View (Zoom 14+)</p>
+            <div class="legend-item">
+                <div class="legend-circle small"></div>
+                <span>1-2 Routes</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-circle medium"></div>
+                <span>3-5 Routes</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-circle large"></div>
+                <span>6+ Routes</span>
+            </div>
         </div>
-        <div class="legend-item">
-            <div class="legend-circle medium"></div>
-            <span>3-5 Routes</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-circle large"></div>
-            <span>6+ Routes</span>
+        <div style="border-top: 1px solid #ccc; padding-top: 12px;">
+            <p style="font-weight: bold; margin: 0 0 6px 0; font-size: 12px;">Heatmap View (Zoom &lt;14)</p>
+            <div id="heatmap-legend">
+                <!-- Dynamically populated by JavaScript -->
+            </div>
         </div>
     </div>
     
@@ -74,6 +76,9 @@
     
     <!-- Leaflet MarkerCluster JS -->
     <script src="https://unpkg.com/leaflet.markercluster@1.5.0/dist/leaflet.markercluster.js"></script>
+    
+    <!-- H3 JS (for hexagonal binning) -->
+    <script src="https://unpkg.com/h3-js@4.1.0/dist/h3-js.umd.js"></script>
     
     <!-- Main App JS -->
     <script src="js/main.js"></script>

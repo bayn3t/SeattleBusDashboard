@@ -423,3 +423,61 @@ body {
     background-color: #00BCD4;
     color: white;
 }
+
+/* Heatmap fade animations */
+@keyframes fadeInHexagons {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 0.85;
+    }
+}
+
+@keyframes fadeOutHexagons {
+    from {
+        opacity: 0.85;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+.hexagon-fade-in {
+    animation: fadeInHexagons 0.6s ease-in-out forwards;
+}
+
+.hexagon-fade-out {
+    animation: fadeOutHexagons 0.6s ease-in-out forwards;
+}
+
+/* Popup styles */
+.stop-popup {
+    font-size: 12px !important;
+}
+
+.hidden-stops-container {
+    max-height: 250px;
+    overflow-y: auto;
+    border-top: 1px solid #e0e0e0;
+    padding-top: 8px;
+}
+
+.hidden-stops-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.hidden-stops-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.hidden-stops-container::-webkit-scrollbar-thumb {
+    background: #bbb;
+    border-radius: 3px;
+}
+
+.hidden-stops-container::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+

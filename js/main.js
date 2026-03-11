@@ -1,6 +1,13 @@
 // Initialize the map centered on Seattle
 const map = L.map('map').setView([47.6062, -122.3321], 11);
 
+// Check if h3 library is available
+if (typeof h3 === 'undefined') {
+    console.error('h3 library not loaded!');
+} else {
+    console.log('h3 library loaded successfully');
+}
+
 // Jurisdiction code mapping
 const jurisdictionMap = {
     'BEL': 'Bellevue',
@@ -57,20 +64,26 @@ const clusterIconCreateFunction = function(cluster) {
     });
 };
 
+// Use progressive clustering - clusters disperse gradually at higher zooms
 let markerGroup = L.markerClusterGroup({
-    maxClusterRadius: 60,
-    disableClusteringAtZoom: 16,
-    iconCreateFunction: clusterIconCreateFunction
+    maxClusterRadius: 50,          // Initial cluster radius
+    disableClusteringAtZoom: 16,   // Completely disable clustering at zoom 16+
+    iconCreateFunction: clusterIconCreateFunction,
+    chunkedLoading: true,          // Load markers in chunks for better performance
+    zoomToBoundsOnClick: true      // Zoom to cluster bounds when clicked
 });
 let routePolyline = null; // Store the current route polyline
 
+// Hexagonal heatmap variables
+let hexLayer = L.featureGroup();
+const HEATMAP_ZOOM_THRESHOLD = 15; // Switch to individual stops at zoom 15+
+const H3_RESOLUTION = 8; // Hexagon resolution (0-15, higher = smaller hexagons)
+let isRouteSearchActive = false; // Track if a route search is currently active
+
 // Color scheme for markers based on number of routes
 function getMarkerColor(routeCount) {
-    if (!routeCount || routeCount === 'No routes') return '#667eea';
-    const count = parseInt(routeCount) || 0;
-    if (count <= 2) return '#667eea';      // Purple - small
-    if (count <= 5) return '#2196F3';      // Blue - medium
-    return '#00BCD4';                      // Teal - large
+    // All individual stops use dark blue when zoomed in
+    return '#1a3a7a';                      // Dark blue
 }
 
 // Calculate distance between two coordinates (Haversine formula)
@@ -202,17 +215,17 @@ function drawRoutePolyline(routeNumber) {
         smoothFactor: 1
     }).addTo(map);
     
-    // Bring markers to front
+    // Bring markers to front so they appear above the polyline
     markerGroup.bringToFront();
 }
 
-// Create custom marker icon
+// Create custom marker icon - smaller and filled
 function createMarkerIcon(color) {
     return L.icon({
-        iconUrl: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${encodeURIComponent(color)}" width="28" height="28"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-        popupAnchor: [0, -14],
+        iconUrl: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${encodeURIComponent(color)}" width="16" height="16"><circle cx="12" cy="12" r="10"/></svg>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8],
+        popupAnchor: [0, -8],
         className: 'bus-stop-marker'
     });
 }
@@ -286,11 +299,11 @@ async function loadStops() {
         const data = await response.json();
         allStops = data.features;
         
-        // Update stop count
-        document.querySelector('.stop-count').textContent = `${allStops.length.toLocaleString()} Active Stops`;
-        
         // Add all stops to map
         displayStops(allStops);
+        
+        // Create hexagonal heatmap for initial display
+        createHexagonalHeatmap(allStops);
         
         // Fit map to bounds
         if (allStops.length > 0) {
@@ -303,10 +316,289 @@ async function loadStops() {
             map.fitBounds(bounds, { padding: [50, 50] });
         }
         
+        // Update layer visibility after fitting bounds (fitBounds may trigger zoomend event)
+        setTimeout(() => {
+            updateLayerVisibility();
+        }, 100);
+        
     } catch (error) {
         console.error('Error loading stops:', error);
-        document.querySelector('.stop-count').textContent = 'Error loading stops';
     }
+}
+
+// Create hexagonal heatmap visualization
+function createHexagonalHeatmap(stops) {
+    // Fade out existing hexagons
+    hexLayer.eachLayer(layer => {
+        if (layer.getElement) {
+            const element = layer.getElement();
+            if (element) {
+                element.classList.remove('hexagon-fade-in');
+                element.classList.add('hexagon-fade-out');
+            }
+        }
+    });
+    
+    // Clear after fade out completes
+    setTimeout(() => {
+        hexLayer.clearLayers();
+        
+        if (stops.length === 0) {
+            console.warn('No stops provided for heatmap');
+            return;
+        }
+        
+        // Group stops by H3 hexagon
+        const hexBins = {};
+        
+        stops.forEach(feature => {
+            const lat = feature.properties.stop_lat;
+            const lon = feature.properties.stop_lon;
+            const hexId = h3.latLngToCell(lat, lon, H3_RESOLUTION);
+            
+            if (!hexBins[hexId]) {
+                hexBins[hexId] = [];
+            }
+            hexBins[hexId].push(feature);
+        });
+    
+    console.log(`Created ${Object.keys(hexBins).length} hexagons for ${stops.length} stops`);
+    
+    // Create color scale for density
+    const stopCounts = Object.values(hexBins).map(arr => arr.length);
+    const maxCount = Math.max(...stopCounts);
+    const minCount = Math.min(...stopCounts);
+    
+    console.log(`Stop counts range: ${minCount} - ${maxCount}`);
+    
+    // Use logarithmic scaling for better color distribution
+    function getLogValue(count) {
+        return Math.log(count - minCount + 1) / Math.log(maxCount - minCount + 1);
+    }
+    
+    // Color gradient with much more contrast - green/yellow (low) to red (high), gray for 0
+    function getDensityColor(count) {
+        // Gray for hexagons with no stops
+        if (count === 0) return '#cccccc';
+        
+        const normalized = getLogValue(count);
+        
+        // Use a more dramatic color scale with better contrast
+        // Green -> Yellow -> Orange -> Red
+        if (normalized < 0.15) return '#91cf60';      // Green - very low
+        if (normalized < 0.30) return '#a6d96a';      // Light green
+        if (normalized < 0.45) return '#d9ef8b';      // Light yellow-green
+        if (normalized < 0.60) return '#fee08b';      // Yellow
+        if (normalized < 0.75) return '#fdae61';      // Orange-yellow
+        if (normalized < 0.90) return '#f46d43';      // Orange-red
+        return '#a50026';                             // Dark red - very high
+    }
+    
+    // Get darker outline color complementary to fill color
+    function getOutlineColor(count) {
+        // Dark gray outline for empty hexagons
+        if (count === 0) return '#888888';
+        
+        const normalized = getLogValue(count);
+        
+        // Darker/more saturated versions for outlines
+        if (normalized < 0.15) return '#4a8c2d';      // Dark green
+        if (normalized < 0.30) return '#5a9c3d';      // Dark green
+        if (normalized < 0.45) return '#8a9c3d';      // Dark yellow-green
+        if (normalized < 0.60) return '#b8a830';      // Dark yellow
+        if (normalized < 0.75) return '#d97e2d';      // Dark orange-yellow
+        if (normalized < 0.90) return '#c94d1f';      // Dark orange-red
+        return '#6b0018';                             // Very dark red
+    }
+    
+    // Update legend with actual ranges
+    updateHeatmapLegend(minCount, maxCount, getLogValue);
+    
+    // Create hexagons for each bin
+    Object.entries(hexBins).forEach(([hexId, stopsInHex]) => {
+        const boundary = h3.cellToBoundary(hexId);
+        // boundary is already [lat, lng] pairs, which is what Leaflet needs
+        const polygonCoords = boundary.map(([lat, lng]) => [lat, lng]);
+        
+        const fillColor = getDensityColor(stopsInHex.length);
+        const outlineColor = getOutlineColor(stopsInHex.length);
+        const polygon = L.polygon(polygonCoords, {
+            color: outlineColor,
+            fillColor: fillColor,
+            fillOpacity: 0.85,
+            weight: 2,
+            opacity: 1
+        });
+        
+        // Create popup with stop list (initially showing first 5)
+        let popupHtml = `<div class="popup-content" data-hex-id="${hexId}"><div class="popup-header">
+                            <div class="stop-name">Hex Cell</div>
+                            <div class="stop-id">${stopsInHex.length} stops</div>
+                          </div><div class="popup-info">`;
+        
+        popupHtml += '<div class="popup-info-row"><div class="info-label">Stops in this area:</div></div>';
+        popupHtml += '<div class="stops-list-container">';
+        stopsInHex.slice(0, 5).forEach(stop => {
+            popupHtml += `<div style="font-size: 11px; margin: 3px 0; padding-left: 10px;">• ${stop.properties.stop_name}</div>`;
+        });
+        
+        if (stopsInHex.length > 5) {
+            const extraCount = stopsInHex.length - 5;
+            popupHtml += `<div style="margin-top: 8px; padding-left: 10px;">
+                            <button class="toggle-stops-btn" data-hex-id="${hexId}" style="
+                                background: #2196F3;
+                                color: white;
+                                border: none;
+                                padding: 4px 10px;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-size: 11px;
+                                font-weight: 500;
+                                width: 100%;
+                                text-align: left;
+                            ">▼ Show ${extraCount} more stops</button>
+                            <div class="hidden-stops-container" id="hidden-stops-${hexId}" style="display: none; margin-top: 8px;">`;
+            
+            stopsInHex.slice(5).forEach(stop => {
+                popupHtml += `<div style="font-size: 11px; margin: 3px 0; padding-left: 10px;">• ${stop.properties.stop_name}</div>`;
+            });
+            
+            popupHtml += `</div></div>`;
+        }
+        
+        popupHtml += '</div></div></div>';
+        
+        // Create a custom popup element
+        const popupDiv = document.createElement('div');
+        popupDiv.innerHTML = popupHtml;
+        
+        // Attach stop data to the popup for later use
+        popupDiv.stopsData = stopsInHex;
+        
+        polygon.bindPopup(popupDiv, {
+            maxWidth: 280,
+            maxHeight: 400,
+            className: 'stop-popup',
+            autoPan: true,
+            autoPanPadding: [50, 50]
+        });
+        
+        // Add click handler to toggle button
+        polygon.on('popupopen', () => {
+            setTimeout(() => {
+                const toggleBtn = document.querySelector(`[data-hex-id="${hexId}"].toggle-stops-btn`);
+                if (toggleBtn) {
+                    toggleBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        const hiddenContainer = document.getElementById(`hidden-stops-${hexId}`);
+                        if (hiddenContainer) {
+                            const isHidden = hiddenContainer.style.display === 'none';
+                            hiddenContainer.style.display = isHidden ? 'block' : 'none';
+                            toggleBtn.textContent = isHidden ? '▲ Hide stops' : `▼ Show ${stopsInHex.length - 5} more stops`;
+                        }
+                    });
+                }
+            }, 100);
+        });
+        
+        hexLayer.addLayer(polygon);
+        
+        // Apply fade-in animation to the polygon element
+        setTimeout(() => {
+            const element = polygon.getElement();
+            if (element) {
+                element.classList.add('hexagon-fade-in');
+            }
+        }, 10);
+    });
+    
+    console.log(`Hexlayer now has ${hexLayer.getLayers().length} layers`);
+    }, 600); // Wait for fade out animation to complete
+}
+
+// Update the heatmap legend with actual numerical ranges using logarithmic scaling
+function updateHeatmapLegend(minCount, maxCount, getLogValue) {
+    // Logarithmic scaling thresholds that map to our color ranges
+    const thresholds = [
+        { normalized: 0.15, color: '#91cf60' },
+        { normalized: 0.30, color: '#a6d96a' },
+        { normalized: 0.45, color: '#d9ef8b' },
+        { normalized: 0.60, color: '#fee08b' },
+        { normalized: 0.75, color: '#fdae61' },
+        { normalized: 0.90, color: '#f46d43' },
+        { normalized: 1.00, color: '#a50026' }
+    ];
+    
+    // Calculate actual stop counts for each threshold
+    const breakpoints = [];
+    
+    // Add gray for 0 stops if minimum is 0
+    if (minCount === 0) {
+        breakpoints.push({
+            color: '#cccccc',
+            start: 0,
+            end: 0
+        });
+    }
+    
+    for (let i = 0; i < thresholds.length; i++) {
+        const norm = thresholds[i].normalized;
+        // Inverse of logarithmic scaling: count = minCount + (maxCount - minCount) * e^(norm * ln(maxCount - minCount + 1))
+        let actualCount;
+        if (i === 0) {
+            actualCount = minCount;
+        } else {
+            const invLog = Math.exp(norm * Math.log(maxCount - minCount + 1)) - 1;
+            actualCount = minCount + Math.round(invLog);
+        }
+        
+        if (i === 0) {
+            const nextNorm = thresholds[1].normalized;
+            const nextInvLog = Math.exp(nextNorm * Math.log(maxCount - minCount + 1)) - 1;
+            const nextCount = minCount + Math.round(nextInvLog);
+            const startVal = minCount === 0 ? 1 : minCount;
+            if (startVal <= nextCount) {
+                breakpoints.push({
+                    color: thresholds[i].color,
+                    start: startVal,
+                    end: nextCount - 1
+                });
+            }
+        } else if (i === thresholds.length - 1) {
+            const prevNorm = thresholds[i - 1].normalized;
+            const prevInvLog = Math.exp(prevNorm * Math.log(maxCount - minCount + 1)) - 1;
+            const prevCount = minCount + Math.round(prevInvLog);
+            breakpoints.push({
+                color: thresholds[i].color,
+                start: prevCount,
+                end: maxCount
+            });
+        } else {
+            const prevNorm = thresholds[i - 1].normalized;
+            const prevInvLog = Math.exp(prevNorm * Math.log(maxCount - minCount + 1)) - 1;
+            const prevCount = minCount + Math.round(prevInvLog);
+            
+            const nextNorm = thresholds[i + 1].normalized;
+            const nextInvLog = Math.exp(nextNorm * Math.log(maxCount - minCount + 1)) - 1;
+            const nextCount = minCount + Math.round(nextInvLog);
+            
+            breakpoints.push({
+                color: thresholds[i].color,
+                start: prevCount,
+                end: nextCount - 1
+            });
+        }
+    }
+    
+    const legendContainer = document.getElementById('heatmap-legend');
+    legendContainer.innerHTML = breakpoints.map(bp => `
+        <div class="legend-item" style="margin: 3px 0;">
+            <div style="width: 20px; height: 12px; background: ${bp.color}; border: 1px solid #333;"></div>
+            <span style="font-size: 11px;">${bp.start} - ${bp.end} stops</span>
+        </div>
+    `).join('');
 }
 
 // Display stops on map
@@ -337,6 +629,47 @@ function displayStops(stops) {
     
     map.addLayer(markerGroup);
 }
+
+// Handle zoom changes to switch between heatmap and markers
+function updateLayerVisibility() {
+    const currentZoom = map.getZoom();
+    console.log(`Zoom level: ${currentZoom}, Threshold: ${HEATMAP_ZOOM_THRESHOLD}, Route search active: ${isRouteSearchActive}`);
+    
+    // If a route search is active, always show markers only - never show heatmap
+    if (isRouteSearchActive) {
+        if (map.hasLayer(hexLayer)) {
+            map.removeLayer(hexLayer);
+        }
+        if (!map.hasLayer(markerGroup)) {
+            map.addLayer(markerGroup);
+        }
+        return;
+    }
+    
+    if (currentZoom < HEATMAP_ZOOM_THRESHOLD) {
+        // Show hexagonal heatmap at low zoom
+        console.log('Switching to heatmap view');
+        if (map.hasLayer(markerGroup)) {
+            map.removeLayer(markerGroup);
+        }
+        if (!map.hasLayer(hexLayer)) {
+            map.addLayer(hexLayer);
+            console.log('Added hexLayer to map');
+        }
+    } else {
+        // Show individual stops at high zoom
+        console.log('Switching to marker view');
+        if (map.hasLayer(hexLayer)) {
+            map.removeLayer(hexLayer);
+        }
+        if (!map.hasLayer(markerGroup)) {
+            map.addLayer(markerGroup);
+            console.log('Added markerGroup to map');
+        }
+    }
+}
+
+map.on('zoomend', updateLayerVisibility);
 
 // Search mode state
 let searchMode = 'route'; // 'route' or 'location'
@@ -371,12 +704,16 @@ document.getElementById('search-input').addEventListener('input', function(e) {
     const query = e.target.value.trim().toUpperCase(); // Convert to uppercase for route search
     
     if (query.length === 0) {
+        // Clear search - reset route search flag and show heatmap
+        isRouteSearchActive = false;
         displayStops(allStops);
+        createHexagonalHeatmap(allStops);
         // Remove route polyline when search is cleared
         if (routePolyline) {
             map.removeLayer(routePolyline);
             routePolyline = null;
         }
+        updateLayerVisibility();
         return;
     }
     
@@ -399,8 +736,20 @@ document.getElementById('search-input').addEventListener('input', function(e) {
     
     // Draw route polyline if searching by route
     if (searchMode === 'route' && query.length > 0 && filteredStops.length > 0) {
+        // Set flag to completely disable heatmap during route search
+        isRouteSearchActive = true;
+        // Disable heatmap for route search - show markers only
+        if (map.hasLayer(hexLayer)) {
+            map.removeLayer(hexLayer);
+        }
+        if (!map.hasLayer(markerGroup)) {
+            map.addLayer(markerGroup);
+        }
         drawRoutePolyline(query);
     } else {
+        // For location search, reset the flag and show heatmap normally
+        isRouteSearchActive = false;
+        createHexagonalHeatmap(filteredStops);
         // Remove polyline if searching by location
         if (routePolyline) {
             map.removeLayer(routePolyline);
@@ -417,26 +766,39 @@ document.getElementById('search-input').addEventListener('input', function(e) {
 // Clear search
 document.getElementById('clear-search').addEventListener('click', function() {
     document.getElementById('search-input').value = '';
+    isRouteSearchActive = false;
     displayStops(allStops);
+    createHexagonalHeatmap(allStops);
     // Remove route polyline when clearing search
     if (routePolyline) {
         map.removeLayer(routePolyline);
         routePolyline = null;
     }
+    updateLayerVisibility();
 });
 
 // Load data when page loads
 window.addEventListener('load', loadStops);
 
+// Also load immediately in case the load event has already fired
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadStops);
+} else {
+    loadStops();
+}
+
 // Keyboard shortcuts
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         document.getElementById('search-input').value = '';
+        isRouteSearchActive = false;
         displayStops(allStops);
+        createHexagonalHeatmap(allStops);
         // Remove route polyline when pressing Escape
         if (routePolyline) {
             map.removeLayer(routePolyline);
             routePolyline = null;
         }
+        updateLayerVisibility();
     }
 });
