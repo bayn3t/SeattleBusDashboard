@@ -2,6 +2,10 @@
 
 An interactive web map of all Seattle/King County Metro bus stops. Find nearby stops, see which routes they serve, and learn about accessibility.
 
+# About the map
+
+Our map shows over 6400 bus stops in the Seattle area. We designed it so that when zoomed out, the bus stop density is displayed as a hexagonal-pattern heatmap, but as you zoom in, you can see individual stops. Red hexagons represent high bus stop concentration, while green ones represent low density. By clicking on a dot/stop, you can see which lines it serves, accessibility, shelter, and more. There is also a search bar that lets users search for lines by route and displays the path they take. We also designed this website to be accessible to desktop and mobile users.
+
 ## How to Use
 
 1. **Open it up**: Just open `index.html` in your browser
