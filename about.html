@@ -1,0 +1,193 @@
+    <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="About the Seattle Metro Bus Stops Map project.">
+    <title>About - Seattle Metro Bus Stops Map</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="busbanner.png">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+    
+    <style>
+        html {
+            overflow: auto !important;
+            height: auto !important;
+        }
+        
+        body {
+            background: #f5f5f5;
+            padding: 20px;
+            overflow: auto !important;
+            height: auto !important;
+            width: auto !important;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        
+        h2 {
+            color: #2c3e50;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        p, li {
+            color: #555;
+            line-height: 1.8;
+            font-size: 15px;
+        }
+        
+        ul {
+            margin-left: 20px;
+        }
+        
+        li {
+            margin-bottom: 10px;
+        }
+        
+        .team {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .back-button {
+            display: inline-block;
+            margin-bottom: 30px;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            transition: background 0.3s;
+            font-weight: 500;
+        }
+        
+        .back-button:hover {
+            background: #764ba2;
+        }
+        
+        .bottom-button {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            transition: background 0.3s;
+            font-weight: 500;
+            z-index: 1000;
+        }
+        
+        .bottom-button:hover {
+            background: #764ba2;
+        }
+        
+        .timestamp {
+            color: #999;
+            font-size: 13px;
+            margin-top: 40px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>About This Project</h1>
+        <p><strong>Seattle Metro Bus Stops Map</strong> - An interactive visualization of King County Metro's entire bus network.</p>
+        
+        <h2>About the Map</h2>
+        <p>
+            Our map shows over 6400 bus stops in the Seattle area. We designed it so that when zoomed out, the bus stop density is displayed 
+            as a hexagonal-pattern heatmap, but as you zoom in, you can see individual stops. Red hexagons represent high bus stop concentration, 
+            while green ones represent low density. By clicking on a dot/stop, you can see which lines it serves, accessibility, shelter, and more. 
+            There is also a search bar that lets users search for lines by route and displays the path they take. We also designed this website 
+            to be accessible to desktop and mobile users.
+        </p>
+        
+        <h2>Why We Built This</h2>
+        <p>
+            Understanding public transit networks can be overwhelming. This map makes it easy to see:
+        </p>
+        <ul>
+            <li>Where bus service is concentrated in the city</li>
+            <li>How transit coverage varies by neighborhood</li>
+            <li>Details about any specific bus stop</li>
+            <li>Route information and accessibility options</li>
+        </ul>
+        
+        <h2>Technology</h2>
+        <p>Built with open-source tools that work in any modern web browser:</p>
+        <ul>
+            <li><strong>Leaflet.js</strong> - Interactive mapping library</li>
+            <li><strong>H3.js</strong> - Hexagonal grid system for heatmap</li>
+            <li><strong>OpenStreetMap</strong> - Free, open map data</li>
+            <li><strong>Vanilla JavaScript</strong> - No heavy frameworks, fast and lightweight</li>
+        </ul>
+        <p>
+            The entire map runs in your browser with no server needed. This means it loads fast and works offline (after the first load).
+        </p>
+        
+        <h2>Data Source</h2>
+        <ul>
+            <li><strong>Source:</strong> King County Metro Transit Stop Database</li>
+            <li><strong>Coverage:</strong> Seattle, King County, and surrounding areas</li>
+            <li><strong>Total Stops:</strong> 6,422 active stops</li>
+            <li><strong>Updated:</strong> December 2025</li>
+        </ul>
+        
+        <h2>About the Team</h2>
+        <div class="team">
+            <p>
+                This project was created as part of a Geography 458 course project at the University of Washington. 
+                The team worked to turn complex transit data into an intuitive, visually engaging map that helps people 
+                understand Seattle's bus network at a glance.
+            </p>
+        </div>
+        
+        <h2>Features</h2>
+        <ul>
+            <li><strong>Zoom and Pan</strong> - Explore the entire region or focus on specific neighborhoods</li>
+            <li><strong>Search</strong> - Find stops by name, ID, or route number</li>
+            <li><strong>Click for Details</strong> - See routes, shelters, and accessibility info</li>
+            <li><strong>Accessibility Info</strong> - Check ADA details for each stop</li>
+            <li><strong>Mobile Friendly</strong> - Works great on phones and tablets</li>
+            <li><strong>Fast & Lightweight</strong> - No heavy downloads or server delays</li>
+        </ul>
+        
+        <h2>Open Source</h2>
+        <p>
+            All the code for this project is available on GitHub. Feel free to explore, modify, 
+            and use it for your own projects. We believe in making transit data accessible to everyone.
+        </p>
+        
+        <div class="timestamp">
+            <p>Last updated: March 2026</p>
+        </div>
+    </div>
+    
+    <a href="index.html" class="bottom-button">← Back to Map</a>
+</body>
+</html>
